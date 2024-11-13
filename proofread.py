@@ -13,38 +13,52 @@ from tenacity import (
     after_log
 )
 import logging
+import requests.exceptions
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=4, max=10),
-    retry=retry_if_exception_type((openai.APIError, openai.APIConnectionError, openai.APITimeoutError)),
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=2, min=4, max=60),
+    retry=retry_if_exception_type((
+        openai.APIError,
+        openai.APIConnectionError,
+        openai.APITimeoutError,
+        requests.exceptions.RequestException,
+        ConnectionError,
+        TimeoutError
+    )),
     before=before_log(logger, logging.INFO),
     after=after_log(logger, logging.INFO)
 )
 def get_openai_response(content):
-    response = openai.chat.completions.create(
-        model="gpt-4",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are a helpful assistant that proofreads and corrects markdown text.",
-            },
-            {
-                "role": "user",
-                "content": f"Proofread and correct the following markdown content:\n\n{content}",
-            },
-        ],
-        temperature=0.0,
-    )
-    
-    if not response or not hasattr(response, 'choices') or not response.choices:
-        raise ValueError("Invalid or empty response from OpenAI API")
+    try:
+        response = openai.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant that proofreads and corrects markdown text.",
+                },
+                {
+                    "role": "user",
+                    "content": f"Proofread and correct the following markdown content:\n\n{content}",
+                },
+            ],
+            temperature=0.0,
+            timeout=30,
+            request_timeout=30,
+        )
         
-    return response
+        if not response or not hasattr(response, 'choices') or not response.choices:
+            raise ValueError("Invalid or empty response from OpenAI API")
+            
+        return response
+    except Exception as e:
+        logger.error(f"Error in API call: {str(e)}")
+        raise
 
 def main():
     files_list_file = sys.argv[1]
