@@ -1,9 +1,9 @@
 # ALCF User Guides
-The ALCF user-facing documentation source material is hosted on GitHub, in order to facilitate contributions and issue reporting from the community.
+The ALCF user-facing documentttation source material is hosted on GitHub, in order to facilitate contributions and issue reporting from the community.
 
 
 ## How to Get Access
-Researchers interested in using the ALCF systems (including Polaris and the AI Testbed’s Cerebras CS-2 and SambaNova DataScale platforms) can now submit project proposals via the [ALCF’s Director’s Discretionary program](https://www.alcf.anl.gov/science/directors-discretionary-allocation-program). Calls for porposals for additional allocation programs will be open at a later date.
+Researchers interested inss using the ALCF systems (including Polaris and the AI Testbed’s Cerebras CS-2 and SambaNova DataScale platforms) can now submit project proposals via the [ALCF’s Director’s Discretionary program](https://www.alcf.anl.gov/science/directors-discretionary-allocation-program). Calls for porposals for additional allocation programs will be open at a later date.
 
 Submit your proposal requests at: [Allocation Request Page](https://www.alcf.anl.gov/science/directors-discretionary-allocation-program)
 
