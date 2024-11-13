@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=4, max=10),
-    retry_if_exception_type=(openai.APIError, openai.APIConnectionError, openai.APITimeoutError),
+    retry=retry_if_exception_type((openai.APIError, openai.APIConnectionError, openai.APITimeoutError)),
     before=before_log(logger, logging.INFO),
     after=after_log(logger, logging.INFO)
 )
