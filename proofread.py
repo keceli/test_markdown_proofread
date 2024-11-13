@@ -11,6 +11,8 @@ def main():
         files = f.read().splitlines()
 
     openai.api_key = os.environ["OPENAI_API_KEY"]
+
+    
     github_token = os.environ["GITHUB_TOKEN"]
     repository = os.environ["GITHUB_REPOSITORY"]
     pr_number = int(os.environ["PR_NUMBER"])
@@ -28,22 +30,29 @@ def main():
             original_content = f.read()
 
         # Use OpenAI API to proofread the content
-        response = openai.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a helpful assistant that proofreads and corrects markdown text.",
-                },
-                {
-                    "role": "user",
-                    "content": f"Proofread and correct the following markdown content:\n\n{original_content}",
-                },
-            ],
-            temperature=0.0,
-        )
+        try:
+            # Sanitize the content before sending
+            sanitized_content = original_content.encode('utf-8', errors='ignore').decode('utf-8')
+            
+            response = openai.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a helpful assistant that proofreads and corrects markdown text.",
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Proofread and correct the following markdown content:\n\n{sanitized_content}",
+                    },
+                ],
+                temperature=0.0,
+            )
 
-        proofread_content = response["choices"][0]["message"]["content"]
+            proofread_content = response.choices[0].message.content
+        except Exception as e:
+            print(f"Error processing {file_path}: {str(e)}")
+            continue
 
         # Compute the diff
         diff = difflib.unified_diff(
