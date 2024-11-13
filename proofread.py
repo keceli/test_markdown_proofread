@@ -6,10 +6,13 @@ from github import Github
 import difflib
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=4, max=10),
-    retry_error_callback=lambda retry_state: print(f"Failed after {retry_state.attempt_number} attempts")
+    retry_error_callback=lambda retry_state: print(
+        f"Failed after {retry_state.attempt_number} attempts"
+    ),
 )
 def get_openai_response(content):
     return openai.chat.completions.create(
@@ -27,6 +30,7 @@ def get_openai_response(content):
         temperature=0.0,
     )
 
+
 def main():
     files_list_file = sys.argv[1]
     with open(files_list_file, "r") as f:
@@ -34,7 +38,6 @@ def main():
 
     openai.api_key = os.environ["OPENAI_API_KEY"]
 
-    
     github_token = os.environ["GITHUB_TOKEN"]
     repository = os.environ["GITHUB_REPOSITORY"]
     pr_number = int(os.environ["PR_NUMBER"])
@@ -54,8 +57,10 @@ def main():
         # Use OpenAI API to proofread the content
         try:
             # Sanitize the content before sending
-            sanitized_content = original_content.encode('utf-8', errors='ignore').decode('utf-8')
-            
+            sanitized_content = original_content.encode(
+                "utf-8", errors="ignore"
+            ).decode("utf-8")
+
             try:
                 response = get_openai_response(sanitized_content)
                 proofread_content = response.choices[0].message.content
