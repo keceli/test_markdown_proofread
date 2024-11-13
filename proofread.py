@@ -1,9 +1,31 @@
 import os
 import sys
+import time
 import openai
 from github import Github
 import difflib
+from tenacity import retry, stop_after_attempt, wait_exponential
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry_error_callback=lambda retry_state: print(f"Failed after {retry_state.attempt_number} attempts")
+)
+def get_openai_response(content):
+    return openai.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {
+                "role": "system",
+                "content": "You are a helpful assistant that proofreads and corrects markdown text.",
+            },
+            {
+                "role": "user",
+                "content": f"Proofread and correct the following markdown content:\n\n{content}",
+            },
+        ],
+        temperature=0.0,
+    )
 
 def main():
     files_list_file = sys.argv[1]
@@ -34,22 +56,13 @@ def main():
             # Sanitize the content before sending
             sanitized_content = original_content.encode('utf-8', errors='ignore').decode('utf-8')
             
-            response = openai.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a helpful assistant that proofreads and corrects markdown text.",
-                    },
-                    {
-                        "role": "user",
-                        "content": f"Proofread and correct the following markdown content:\n\n{sanitized_content}",
-                    },
-                ],
-                temperature=0.0,
-            )
+            try:
+                response = get_openai_response(sanitized_content)
+                proofread_content = response.choices[0].message.content
+            except Exception as api_error:
+                print(f"API Error for {file_path}: {str(api_error)}")
+                continue
 
-            proofread_content = response.choices[0].message.content
         except Exception as e:
             print(f"Error processing {file_path}: {str(e)}")
             continue
