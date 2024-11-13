@@ -4,18 +4,29 @@ import time
 import openai
 from github import Github
 import difflib
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    before_log,
+    after_log
+)
+import logging
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=4, max=10),
-    retry_error_callback=lambda retry_state: print(
-        f"Failed after {retry_state.attempt_number} attempts"
-    ),
+    retry_if_exception_type=(openai.APIError, openai.APIConnectionError, openai.APITimeoutError),
+    before=before_log(logger, logging.INFO),
+    after=after_log(logger, logging.INFO)
 )
 def get_openai_response(content):
-    return openai.chat.completions.create(
+    response = openai.chat.completions.create(
         model="gpt-4",
         messages=[
             {
@@ -29,7 +40,11 @@ def get_openai_response(content):
         ],
         temperature=0.0,
     )
-
+    
+    if not response or not hasattr(response, 'choices') or not response.choices:
+        raise ValueError("Invalid or empty response from OpenAI API")
+        
+    return response
 
 def main():
     files_list_file = sys.argv[1]
@@ -62,14 +77,21 @@ def main():
             ).decode("utf-8")
 
             try:
+                logger.info(f"Processing file: {file_path}")
                 response = get_openai_response(sanitized_content)
+                if not response or not response.choices:
+                    logger.error(f"Empty response received for {file_path}")
+                    continue
+                    
                 proofread_content = response.choices[0].message.content
+                logger.info(f"Successfully processed {file_path}")
+                
             except Exception as api_error:
-                print(f"API Error for {file_path}: {str(api_error)}")
+                logger.error(f"API Error for {file_path}: {str(api_error)}")
                 continue
 
         except Exception as e:
-            print(f"Error processing {file_path}: {str(e)}")
+            logger.error(f"Error processing {file_path}: {str(e)}")
             continue
 
         # Compute the diff
