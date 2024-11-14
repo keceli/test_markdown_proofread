@@ -2,7 +2,13 @@ name: Proofread Markdown Files
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize]
+    paths:
+      - '**.md'
+
+permissions:
+  pull-requests: write
+  contents: read
 
 jobs:
   proofread:
