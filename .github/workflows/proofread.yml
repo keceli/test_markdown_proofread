@@ -2,7 +2,13 @@ name: Proofread Markdown Files
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize]
+    paths:
+      - '**.md'
+
+permissions:
+  pull-requests: write
+  contents: read
 
 jobs:
   proofread:
@@ -10,22 +16,22 @@ jobs:
 
     steps:
     - name: Checkout PR code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Fetch all history for accurate diff
-        ref: ${{ github.event.pull_request.head.sha }}  # Checkout the PR's HEAD commit
+        ref: ${{ github.event.pull_request.head.sha }}  # Checkout the PR's HEAD commit 
 
     - name: Fetch base branch
       run: git fetch origin ${{ github.base_ref }} --depth=1
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.x'
 
     - name: Install dependencies
       run: |
-        pip install openai PyGithub
+        pip install openai PyGithub tenacity
 
     - name: Get list of changed Markdown files
       id: changed_files
@@ -39,9 +45,9 @@ jobs:
       if: steps.changed_files.outputs.files != ''
       run: |
         echo "${{ steps.changed_files.outputs.files }}" > changed_files.txt
-        python proofread.py changed_files.txt
+        python -u proofread.py changed_files.txt
       env:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GITHUB_REPOSITORY: ${{ github.repository }}
-        PR_NUMBER: ${{ github.event.number }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
