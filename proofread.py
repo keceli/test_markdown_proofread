@@ -63,18 +63,26 @@ def create_review_comments(repo, pr_number, file_changes):
     """Create review comments with suggestions on the PR"""
     pr = repo.get_pull(pr_number)
     
+    review_comments = []
+    
     for file_path, new_content in file_changes.items():
         # Get the file from the PR
         file = pr.get_files().get_page(0)[0]  # Assuming first file is our target
         
         # Create a review comment with suggestion
         suggestion = f"```suggestion\n{new_content}\n```"
-        pr.create_review_comment(
-            body=f"Suggested improvements:\n\n{suggestion}",
-            commit_id=file.sha,
-            path=file_path,
-            position=1  # This will place the comment at the start of the file
-        )
+        review_comments.append({
+            "path": file_path,
+            "position": 1,  # This will place the comment at the start of the file
+            "body": f"Suggested improvements:\n\n{suggestion}"
+        })
+    
+    # Create a review with the comments
+    pr.create_review(
+        body="This review contains suggested improvements to the documentation.",
+        event="COMMENT",
+        comments=review_comments
+    )
 
 def main():
     files_list_file = sys.argv[1]
