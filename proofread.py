@@ -59,36 +59,68 @@ def get_openai_response(content):
         logger.error(f"Error in API call: {str(e)}")
         raise
 
+def create_branch_and_pr(repo, base_branch, file_changes):
+    """Create a new branch and PR with the suggested changes"""
+    # Create a new branch name with timestamp
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    new_branch = f"proofread-suggestions-{timestamp}"
+    
+    # Get the base branch's HEAD ref
+    base_ref = repo.get_branch(base_branch)
+    
+    # Create new branch from base
+    repo.create_git_ref(f"refs/heads/{new_branch}", base_ref.commit.sha)
+    
+    # Create commits with the changes
+    for file_path, new_content in file_changes.items():
+        # Get current file content
+        file = repo.get_contents(file_path, ref=new_branch)
+        
+        # Create commit
+        repo.update_file(
+            file_path,
+            f"docs: Proofread {file_path}",
+            new_content,
+            file.sha,
+            branch=new_branch
+        )
+    
+    # Create PR
+    pr = repo.create_pull(
+        title="📚 Proofreading Suggestions",
+        body="This PR contains suggested improvements to the documentation from the proofreading bot.",
+        head=new_branch,
+        base=base_branch,
+        maintainer_can_modify=True
+    )
+    return pr
+
 def main():
     files_list_file = sys.argv[1]
     with open(files_list_file, "r") as f:
         files = f.read().splitlines()
 
     openai.api_key = os.environ["OPENAI_API_KEY"]
-
     github_token = os.environ["GITHUB_TOKEN"]
     repository = os.environ["GITHUB_REPOSITORY"]
-    pr_number = int(os.environ["PR_NUMBER"])
+    base_branch = os.environ["GITHUB_BASE_REF"]  # Add this env var to workflow
 
     g = Github(github_token)
     repo = g.get_repo(repository)
-    pr = repo.get_pull(pr_number)
-
+    
+    file_changes = {}
+    
     for file_path in files:
         if not os.path.exists(file_path):
-            print(f"File {file_path} does not exist.")
+            logger.error(f"File {file_path} does not exist.")
             continue
 
         with open(file_path, "r", encoding="utf-8") as f:
             original_content = f.read()
 
-        # Use OpenAI API to proofread the content
         try:
-            # Sanitize the content before sending
-            sanitized_content = original_content.encode(
-                "utf-8", errors="ignore"
-            ).decode("utf-8")
-
+            sanitized_content = original_content.encode('utf-8', errors='ignore').decode('utf-8')
+            
             try:
                 logger.info(f"Processing file: {file_path}")
                 response = get_openai_response(sanitized_content)
@@ -97,6 +129,11 @@ def main():
                     continue
                     
                 proofread_content = response.choices[0].message.content
+                
+                # Only store changes if content actually changed
+                if proofread_content != original_content:
+                    file_changes[file_path] = proofread_content
+                    
                 logger.info(f"Successfully processed {file_path}")
                 
             except Exception as api_error:
@@ -107,26 +144,15 @@ def main():
             logger.error(f"Error processing {file_path}: {str(e)}")
             continue
 
-        # Compute the diff
-        diff = difflib.unified_diff(
-            original_content.splitlines(),
-            proofread_content.splitlines(),
-            fromfile=f"a/{file_path}",
-            tofile=f"b/{file_path}",
-            lineterm="",
-        )
-
-        diff_text = "\n".join(diff)
-
-        if diff_text:
-            # Post the diff as a comment on the PR
-            comment_body = (
-                f"Suggestions for **{file_path}**:\n\n```diff\n{diff_text}\n```"
-            )
-            pr.create_issue_comment(comment_body)
-        else:
-            print(f"No suggestions for {file_path}")
-
+    # Create PR with changes if there are any
+    if file_changes:
+        try:
+            pr = create_branch_and_pr(repo, base_branch, file_changes)
+            logger.info(f"Created PR #{pr.number} with suggested changes")
+        except Exception as e:
+            logger.error(f"Error creating PR: {str(e)}")
+    else:
+        logger.info("No changes needed in any files")
 
 if __name__ == "__main__":
     main()
