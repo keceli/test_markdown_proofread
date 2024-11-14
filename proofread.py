@@ -49,7 +49,6 @@ def get_openai_response(content):
             ],
             temperature=0.0,
             timeout=30,
-            request_timeout=30,
         )
         
         if not response or not hasattr(response, 'choices') or not response.choices:
