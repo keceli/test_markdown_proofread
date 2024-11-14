@@ -59,41 +59,22 @@ def get_openai_response(content):
         logger.error(f"Error in API call: {str(e)}")
         raise
 
-def create_branch_and_pr(repo, base_branch, file_changes):
-    """Create a new branch and PR with the suggested changes"""
-    # Create a new branch name with timestamp
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    new_branch = f"proofread-suggestions-{timestamp}"
+def create_review_comments(repo, pr_number, file_changes):
+    """Create review comments with suggestions on the PR"""
+    pr = repo.get_pull(pr_number)
     
-    # Get the base branch's HEAD ref
-    base_ref = repo.get_branch(base_branch)
-    
-    # Create new branch from base
-    repo.create_git_ref(f"refs/heads/{new_branch}", base_ref.commit.sha)
-    
-    # Create commits with the changes
     for file_path, new_content in file_changes.items():
-        # Get current file content
-        file = repo.get_contents(file_path, ref=new_branch)
+        # Get the file from the PR
+        file = pr.get_files().get_page(0)[0]  # Assuming first file is our target
         
-        # Create commit
-        repo.update_file(
-            file_path,
-            f"docs: Proofread {file_path}",
-            new_content,
-            file.sha,
-            branch=new_branch
+        # Create a review comment with suggestion
+        suggestion = f"```suggestion\n{new_content}\n```"
+        pr.create_review_comment(
+            body=f"Suggested improvements:\n\n{suggestion}",
+            commit_id=file.sha,
+            path=file_path,
+            position=1  # This will place the comment at the start of the file
         )
-    
-    # Create PR
-    pr = repo.create_pull(
-        title="📚 Proofreading Suggestions",
-        body="This PR contains suggested improvements to the documentation from the proofreading bot.",
-        head=new_branch,
-        base=base_branch,
-        maintainer_can_modify=True
-    )
-    return pr
 
 def main():
     files_list_file = sys.argv[1]
@@ -103,7 +84,7 @@ def main():
     openai.api_key = os.environ["OPENAI_API_KEY"]
     github_token = os.environ["GITHUB_TOKEN"]
     repository = os.environ["GITHUB_REPOSITORY"]
-    base_branch = os.environ["GITHUB_BASE_REF"]  # Add this env var to workflow
+    pr_number = int(os.environ["PR_NUMBER"])
 
     g = Github(github_token)
     repo = g.get_repo(repository)
@@ -144,13 +125,13 @@ def main():
             logger.error(f"Error processing {file_path}: {str(e)}")
             continue
 
-    # Create PR with changes if there are any
+    # Create review comments if there are any changes
     if file_changes:
         try:
-            pr = create_branch_and_pr(repo, base_branch, file_changes)
-            logger.info(f"Created PR #{pr.number} with suggested changes")
+            create_review_comments(repo, pr_number, file_changes)
+            logger.info("Created review comments with suggestions")
         except Exception as e:
-            logger.error(f"Error creating PR: {str(e)}")
+            logger.error(f"Error creating review comments: {str(e)}")
     else:
         logger.info("No changes needed in any files")
 
